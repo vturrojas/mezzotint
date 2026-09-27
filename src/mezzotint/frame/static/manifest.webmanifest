@@ -1,0 +1,14 @@
+{
+  "name": "Mezzotint",
+  "short_name": "Mezzotint",
+  "description": "Commission prints for the e-paper frame.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EDE8DC",
+  "theme_color": "#EDE8DC",
+  "icons": [
+    {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+    {"src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml"}
+  ]
+}

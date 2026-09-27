@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mezzotint"
+version = "1.0.0"
+description = "An AI print studio for a three-ink e-paper frame: local models on a Mac, prints on a Raspberry Pi."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn>=0.27",
+  "httpx>=0.27",
+  "pillow>=9.4",
+  "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+frame = ["qrcode>=7.4", "inky>=2.0; platform_machine == 'aarch64' or platform_machine == 'armv7l'"]
+studio = ["mflux>=0.13; sys_platform == 'darwin' and platform_machine == 'arm64'"]
+dev = ["pytest>=8", "qrcode>=7.4"]
+
+[project.scripts]
+mezzotint-studio = "mezzotint.studio.server:main"
+mezzotint-frame = "mezzotint.frame.server:main"
+mezzotint-proof = "mezzotint.proof:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"mezzotint.frame" = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
