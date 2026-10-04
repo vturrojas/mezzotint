@@ -102,8 +102,55 @@ EOF
 sudo mkdir -p /etc/systemd/journald.conf.d
 printf '[Journal]\nSystemMaxUse=50M\n' | sudo tee /etc/systemd/journald.conf.d/mezzotint.conf >/dev/null
 
+# Keep Wi-Fi up. Raspberry Pi OS enables Wi-Fi power saving by default, which
+# makes Pis drop off the network or fail to renew their address; and a frame
+# in a closed case can't be reached to fix that by hand. So: power saving off,
+# plus a watchdog that restarts Wi-Fi when the router stops answering.
+if [[ -e /sys/class/net/wlan0 ]] && command -v nmcli >/dev/null; then
+  say "Hardening Wi-Fi (power saving off, reconnect watchdog)..."
+  sudo mkdir -p /etc/NetworkManager/conf.d
+  printf '[connection]\nwifi.powersave = 2\n' | sudo tee /etc/NetworkManager/conf.d/wifi-powersave-off.conf >/dev/null
+  sudo iw wlan0 set power_save off 2>/dev/null || true   # takes effect now, the file keeps it after reboots
+
+  sudo tee /usr/local/bin/wifi-watchdog >/dev/null <<'EOF'
+#!/bin/sh
+# Restart Wi-Fi if the router doesn't answer (installed by Mezzotint).
+GW=$(ip route | awk '/default/{print $3; exit}')
+if [ -z "$GW" ]; then
+  logger "wifi-watchdog: no default route, restarting Wi-Fi"
+else
+  ping -c3 -W2 "$GW" >/dev/null 2>&1 && exit 0
+  logger "wifi-watchdog: router $GW unreachable, restarting Wi-Fi"
+fi
+nmcli radio wifi off; sleep 3; nmcli radio wifi on
+EOF
+  sudo chmod 755 /usr/local/bin/wifi-watchdog
+
+  sudo tee /etc/systemd/system/wifi-watchdog.service >/dev/null <<'EOF'
+[Unit]
+Description=Restart Wi-Fi if the router is unreachable
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/wifi-watchdog
+EOF
+
+  sudo tee /etc/systemd/system/wifi-watchdog.timer >/dev/null <<'EOF'
+[Unit]
+Description=Check Wi-Fi every 2 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+
+[Install]
+WantedBy=timers.target
+EOF
+fi
+
 sudo systemctl daemon-reload
 sudo systemctl enable mezzotint-frame >/dev/null
+[[ -f /etc/systemd/system/wifi-watchdog.timer ]] && sudo systemctl enable --now wifi-watchdog.timer >/dev/null
 
 HOSTNAME_NOW="${NEWHOST:-$(hostname)}"
 if (( REBOOT )); then

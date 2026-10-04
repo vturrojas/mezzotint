@@ -90,7 +90,7 @@ git clone <this repo> mezzotint && cd mezzotint
 ./deploy/pi/install.sh --studio http://studio-mac.local:8765 --token <token-from-the-mac>
 ```
 
-It enables SPI and I2C, adds the `spi0-0cs` overlay the Inky needs, installs into a virtualenv, writes `/etc/mezzotint/frame.env`, caps the system journal to spare the SD card, and installs a systemd service. It reboots if the SPI settings changed.
+It enables SPI and I2C, adds the `spi0-0cs` overlay the Inky needs, installs into a virtualenv, writes `/etc/mezzotint/frame.env`, caps the system journal to spare the SD card, turns off Wi-Fi power saving, adds a watchdog that restarts Wi-Fi if the router stops answering, and installs a systemd service. It reboots if the SPI settings changed.
 
 When it comes back, the panel prints a **QR code**. Scan it.
 
@@ -187,6 +187,7 @@ After editing, restart: `sudo systemctl restart mezzotint-frame` on the Pi; `lau
 | `No EEPROM detected` | Check SPI/I2C are on (`sudo raspi-config`), or set `MEZZOTINT_PANEL=what-red`. |
 | Phone says *studio asleep* | The Mac is asleep or the studio is stopped. Check `~/.mezzotint/logs/studio.log`. To keep it awake on power: `sudo pmset -c sleep 0`. |
 | First print is slow | Models load into memory on first use after a reboot. Later prints are much faster. |
+| Phone can't reach the frame at all | The Pi has likely lost its Wi-Fi address. The watchdog restarts Wi-Fi within a few minutes; `journalctl -t wifi-watchdog` shows each time it did. Give the Pi a fixed IP in your router and bookmark `http://<that IP>/` on your phone. |
 | `mezzotint.local` doesn't resolve | Some Android builds lack mDNS. Use the Pi's IP address, or set a DHCP reservation. |
 | Frame logs | `journalctl -u mezzotint-frame -f` |
 
