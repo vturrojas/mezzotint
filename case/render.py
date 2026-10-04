@@ -50,14 +50,15 @@ def sheet(tiles, out, cols=3):
 
 if __name__ == "__main__":
     L = lambda n: trimesh.load(f"out/mezzotint_{n}.stl")
-    body, cover, cradle = L("body"), L("cover"), L("cradle")
-    PET, COV, CR = (150, 178, 186), (205, 186, 150), (180, 164, 200)
+    body, cover = L("body"), L("cover")
+    ef, eb, es = L("easel_front"), L("easel_back_leg"), L("easel_shelf")
+    PET, COV, WOOD = (150, 178, 186), (205, 186, 150), (182, 196, 202)
     tiles = [
         (render([(body, PET, 1)], (0, 0, 1)), "body: front (looking at the window)"),
-        (render([(body, PET, 1)], (0.35, -0.45, -1)), "body: rear 3/4 (lip, bosses, vents)"),
-        (render([(body, PET, 1)], (0.2, -0.25, 1)), "body: back (bottom-weighted cavity, strip relief)"),
-        (render([(cover, COV, 1)], (0.3, -0.4, 1)), "cover: inside (foam-dot rings)"),
+        (render([(body, PET, 1)], (0.25, 1, 0.5), up=(0, 0, 1)), "body: underneath (cord slot, open to the back)"),
         (render([(cover, COV, 1)], (0.3, -0.4, -1)), "cover: outside (keyhole blocks)"),
-        (render([(cradle, CR, 1)], (0.55, -0.7, -0.5), up=(0, 0, 1)), "cradle: rear 3/4 (cable channel)"),
+        (render([(ef, WOOD, 1)], (0.2, 0.3, -1)), "easel front, as printed (stop and pivot up)"),
+        (render([(eb, WOOD, 1)], (0.2, 0.3, -1)), "easel back leg, as printed"),
+        (render([(es, WOOD, 1)], (0.3, 0.5, -1)), "easel shelf, as printed (cord notch)"),
     ]
     sheet(tiles, sys.argv[1] if len(sys.argv) > 1 else "preview.png")

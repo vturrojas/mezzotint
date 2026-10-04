@@ -10,8 +10,10 @@ Parts (all parametric, build123d):
           clamp the stack to the bezel without loading the display glass.
           Prints inside-face down with no supports.
           Two keyhole blocks outside hang it on the wall, 4.5 mm proud.
-  cradle  Optional desk stand: the frame drops into a slot tilted back 15
-          degrees, with a notch for the power cable.
+  easel   A desk easel in homage to portrayt's: two splayed front legs, a
+          shelf the frame stands on, and a back leg that rises between the
+          leg tops on an M3 pivot and folds flat. A stop behind the front legs
+          sets its angle. The power plug drops through a notch in the shelf.
   fitring The first few mm of the body: a 20-minute print to check that the
           wHAT drops in and the window lines up before the long print.
 
@@ -31,12 +33,14 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from build123d import (
-    Align, Axis, Box, BuildPart, Cone, Cylinder, Locations, Mode, Part, Pos, Rot,
+    Align, Axis, Box, BuildPart, Cone, Cylinder, Location, Locations, Mode, Part, Plane, Pos, Rot,
+    Vector,
     chamfer, export_step, export_stl, fillet,
 )
 
 MIN = (Align.CENTER, Align.CENTER, Align.MIN)
 MAX = (Align.CENTER, Align.CENTER, Align.MAX)
+MIN_C = MIN
 
 
 @dataclass
@@ -67,7 +71,9 @@ class P:
     jack_overhang: float = 3.0      # USB-A past the Pi's right edge
     sd_overhang: float = 4.0        # card tip is flush with the wHAT's edge
     sd_clear: float = 0.6
-    usb_x: float = 10.6             # micro-USB centre from the Pi's left edge
+    usb_x: float = 12.5             # micro-USB centre from the Pi's left edge (drawing says
+                                    # 10.6, a photo of the cord says 14.4; cutouts cover both)
+    usb_slot: float = 16.0          # width of the cord cutouts
     pi_holes: list = field(default_factory=lambda: [[3.5, 3.5], [61.5, 3.5], [3.5, 52.5], [61.5, 52.5]])
     screw_head_h: float = 2.2
 
@@ -92,10 +98,24 @@ class P:
     keyhole_shank: float = 4.4
     standoff: float = 4.5
     tilt_deg: float = 15.0
-    # "rear": right-angle micro-USB cable, exits a notch at the bottom-centre of
-    # the back (frame can stand on its edge). "bottom": straight cable through
-    # the bottom wall (wall-hanging only; the plug sticks out ~25 mm).
-    cable_exit: str = "rear"
+    # "bottom": straight micro-USB plug through a slot in the bottom wall, open
+    # to the back so the stack drops in with the plug fitted (use the easel or
+    # hang it). "rear": right-angle cable out of a notch in the cover.
+    cable_exit: str = "bottom"
+    plug_drop: float = 12.0         # rigid plug boot below the frame's bottom edge
+
+    # easel (local frame: x right, u up the front legs, n toward the viewer)
+    lean_deg: float = 20.0          # front legs lean back from vertical
+    leg: float = 10.0               # square stock
+    leg_chamfer: float = 1.6
+    easel_h: float = 150.0          # front leg length
+    foot_x: float = 55.0            # front feet, centre to leg centre
+    rear_deg: float = 42.0          # back leg opens this far from the front legs
+    rear_rise: float = 11.0         # back leg rises above the pivot, like the original
+    shelf_u: float = 45.0           # shelf top, along the legs
+    shelf_len: float = 118.0
+    shelf_t: float = 9.0
+    lip: float = 3.0
     cable_d: float = 4.2
 
     # ---- derived ----
@@ -126,8 +146,9 @@ class P:
 
 
 def B(x, y):
-    """Front-view (Y down) -> model (Y up)."""
-    return x, -y
+    """Front-view coords (X right, Y down, seen from the front) -> model.
+    The viewer looks at the glass (z = 0) from -Z, so their right is model -X."""
+    return -x, -y
 
 
 def rounded_box(w, h, d, r):
@@ -186,16 +207,16 @@ def body(p: P) -> Part:
 
         # straight-cable option: micro-USB window in the bottom wall
         if p.cable_exit == "bottom":
-            uz = p.front_t + p.pi_front_z - 1.6
-            with Locations((g.usb_x, g.bot_in - p.wall / 2, uz)):
-                Box(14.0, p.wall + 2, 10.0, mode=Mode.SUBTRACT)
+            z0 = p.front_t + p.pi_front_z - 1.5 - 5.5      # plug boot is ~8 mm round
+            with Locations((g.usb_x, g.bot_in - p.wall / 2, z0)):
+                Box(p.usb_slot, p.wall + 2, zb - z0 + 1, align=MIN, mode=Mode.SUBTRACT)
 
         # vent slots in the top and bottom walls, in the Pi's depth band
         vz0 = p.front_t + p.pi_front_z - 10
         for i in range(-4, 5):
             vx = g.cx + i * 6.5
             for vy, skip_usb in ((g.top_in + p.wall / 2, False), (g.bot_in - p.wall / 2, True)):
-                if skip_usb and p.cable_exit == "bottom" and abs(vx - g.usb_x) < 12:
+                if skip_usb and p.cable_exit == "bottom" and abs(vx - g.usb_x) < p.usb_slot / 2 + 4:
                     continue
                 if skip_usb and any(abs(vx - bx) < p.boss for bx, _ in g.bosses):
                     continue
@@ -279,32 +300,123 @@ def cover(p: P) -> Part:
     return bp.part
 
 
-def cradle(p: P) -> Part:
-    """Desk stand, pure CSG. Viewer on +Y; the frame leans back toward -Y,
-    so the base runs long behind the slot for stability."""
-    g = Geo(p)
-    slot_w = p.zb() + 0.8
-    L = min(g.ow * 0.8, 110.0)
-    front, rear = 10.0, 40.0                 # base beyond the slot centre
-    ridge_h, floor = 12.0, 7.0
-    base = Pos(0, (front - rear) / 2, 0) * Box(L, front + rear + slot_w, 5.0, align=MIN)
-    ridge = Box(L, slot_w + 12.0, ridge_h, align=MIN)
-    ridge = Pos(0, 0, 5.0) * ridge
-    part = base + ridge
-    slot = Pos(0, 0, floor) * Rot(p.tilt_deg, 0, 0) * Box(L + 2, slot_w, 40.0, align=MIN)
-    part = part - slot
-    x = g.usb_x - g.cx if p.cable_exit == "bottom" else 0.0
-    if p.cable_exit == "bottom":
-        # straight plug needs to drop through: open the slot floor and base
-        part = part - Pos(x, 0, -1) * Box(18.0, slot_w + 14.0, 40.0, align=MIN)
-    else:
-        # cable leaves the back of the frame low and centred: channel out the rear
-        part = part - Pos(x, -(slot_w + 12.0) / 2, floor - 2.0) * Box(p.cable_d + 2.0, slot_w + 2.0, 20.0, align=MIN)
-    try:
-        part = fillet(part.edges().filter_by(Axis.Z), 1.2)
-    except Exception:
-        pass
-    return part
+# ---------------------------------------------------------------- easel
+
+def easel_frame(p: P):
+    """Location mapping easel-local (x, u, n) to world (z up, viewer on +Y)."""
+    L = math.radians(p.lean_deg)
+    eu = (0, -math.sin(L), math.cos(L))
+    en = (0, math.cos(L), math.sin(L))
+    # x is the viewer's right (world -X: they stand on +Y looking toward -Y), so
+    # x, u, n is right-handed
+    return Location(Plane(origin=(0, 0, 0), x_dir=(-1, 0, 0), z_dir=en)), eu, en
+
+
+def _bar(p0, p1, w, t, ch, ydir):
+    """Square bar from p0 to p1 (easel-local), every edge chamfered."""
+    v0, v1 = Vector(*p0), Vector(*p1)
+    z = (v1 - v0).normalized()
+    y = Vector(*ydir)
+    y = (y - z * y.dot(z)).normalized()
+    x = y.cross(z)
+    b = chamfer(Box(w, t, (v1 - v0).length, align=MIN_C).edges(), ch)
+    return Location(Plane(origin=v0, x_dir=x, z_dir=z)) * b
+
+
+class EaselGeo:
+    def __init__(self, p: P):
+        self.gap = p.leg + 0.8                                  # back leg + clearance
+        s = 0.0
+        for _ in range(5):                                      # leg-top centre vs splay
+            tx = self.gap / 2 + (p.leg / 2) / math.cos(s)
+            s = math.atan((p.foot_x - tx) / p.easel_h)
+        self.tx, self.splay = tx, s
+        self.pivot_u = p.easel_h - 7.0
+        a = math.radians(p.rear_deg)
+        self.d = (0.0, -math.cos(a), -math.sin(a))              # back leg, pointing down
+        self.ledge_u0 = p.shelf_u - p.shelf_t
+
+    def leg_x(self, p: P, u):
+        return p.foot_x - (p.foot_x - self.tx) * u / p.easel_h
+
+
+def _ground_cut(part, loc):
+    world = loc * part
+    world = world & Box(1000, 1000, 1000, align=(Align.CENTER, Align.CENTER, Align.MIN))
+    return loc.inverse() * world
+
+
+def easel_rear_local(p: P, grow: float = 0.0) -> Part:
+    e = EaselGeo(p)
+    d = Vector(*e.d)
+    pv = Vector(0, e.pivot_u, 0)
+    top = pv - d * p.rear_rise
+    bot = pv + d * (e.pivot_u * 1.2)
+    w = p.leg + 2 * grow
+    return _bar(bot, top - d * grow, w, w, p.leg_chamfer, (0, 0, 1))
+
+
+def easel_parts(p: P):
+    """Return (front, rear, ledge) in easel-local coordinates, ground-cut."""
+    e = EaselGeo(p)
+    loc, _, _ = easel_frame(p)
+    t = p.leg
+
+    legs = None
+    for s in (-1, 1):
+        b = _bar((s * (p.foot_x + 15 * math.tan(e.splay)), -15, 0), (s * e.tx, p.easel_h, 0),
+                 t, t, p.leg_chamfer, (0, 0, 1))
+        legs = b if legs is None else legs + b
+
+    # stop: a block behind the leg tops, cut to the open back leg's shape
+    u0, u1 = e.pivot_u - 17, e.pivot_u - 3
+    wx = e.leg_x(p, u0)                                  # reaches the middle of each leg
+    stop = Pos(0, u0, -t / 2 - 15) * Box(2 * wx, u1 - u0, 15, align=(Align.CENTER, Align.MIN, Align.MIN))
+    stop = chamfer(stop.edges().filter_by(Axis.Y), 1.2)
+    front = legs + stop
+    front = front - easel_rear_local(p, grow=0.3)
+
+    # pivot hole, and holes for the shelf screws
+    pv = (0, e.pivot_u, 0)
+    hole = Pos(*pv) * Rot(0, 90, 0) * Cylinder(1.7, 80)
+    front = front - hole
+    rear = easel_rear_local(p) - hole
+    ux = e.ledge_u0 + p.shelf_t / 2
+    for s in (-1, 1):
+        lx = s * e.leg_x(p, ux)
+        front = front - Pos(lx, ux, 0) * Cylinder(1.7, 40)
+        front = front - Pos(lx, ux, -t / 2 - 0.01) * Cone(3.2, 1.7, 1.6, align=MIN)   # countersink, back face
+
+    # shelf: back face on the front of the legs, lip at the front
+    depth = 34.0
+    n0 = t / 2
+    shelf = Pos(0, e.ledge_u0, n0) * Box(p.shelf_len, p.shelf_t, depth + p.lip,
+                                         align=(Align.CENTER, Align.MIN, Align.MIN))
+    shelf = shelf + Pos(0, e.ledge_u0, n0 + depth) * Box(p.shelf_len, p.shelf_t + 4, p.lip,
+                                                        align=(Align.CENTER, Align.MIN, Align.MIN))
+    # cord notch, open to the back, where the plug comes out of the frame
+    cx = -(Geo(p).usb_x - Geo(p).cx)                 # model -> easel x (viewer's right is +x)
+    shelf = shelf - Pos(cx, e.ledge_u0 - 1, n0 - 1) * Box(p.usb_slot, p.shelf_t + 2, 22,
+                                                          align=(Align.CENTER, Align.MIN, Align.MIN))
+    for s in (-1, 1):
+        shelf = shelf - Pos(s * e.leg_x(p, ux), ux, n0 - 0.01) * Cylinder(1.25, 13, align=MIN)
+
+    front = _ground_cut(front, loc)
+    rear = _ground_cut(rear, loc)
+    return front, rear, shelf
+
+
+def easel_print(p: P):
+    """Each easel part laid flat for printing, no supports."""
+    front, rear, shelf = easel_parts(p)
+    front_p = Rot(180, 0, 0) * front                        # front faces on the bed
+    rear_p = Rot(0, 90, 0) * rear                           # on its side
+    shelf_p = Rot(90, 0, 0) * shelf                         # underside down, lip up
+    out = {}
+    for name, part in (("easel_front", front_p), ("easel_back_leg", rear_p), ("easel_shelf", shelf_p)):
+        bb = part.bounding_box()
+        out[name] = Pos(-bb.center().X, -bb.center().Y, -bb.min.Z) * part
+    return out
 
 
 def fitring(p: P) -> Part:
@@ -315,7 +427,7 @@ def fitring(p: P) -> Part:
 
 
 def build(p: P):
-    return {"body": body(p), "cover": cover(p), "cradle": cradle(p), "fitring": fitring(p)}
+    return {"body": body(p), "cover": cover(p), "fitring": fitring(p), **easel_print(p)}
 
 
 def main(params_file: str | None = None):

@@ -136,9 +136,10 @@ To use real models from a laptop, set `OLLAMA_URL=http://127.0.0.1:11434` for th
 
 ## The case
 
-`case/` has a parametric enclosure you print in one colour (build123d): a slim bezel with a 45° mat bevel, weighted at the bottom like a gallery mat; a back cover with keyholes for wall hanging; and a desk cradle that leans the frame back 15°. It measures 96 × 83 × 28 mm and needs no supports. There is also a quick fit-test ring to print before the long job. [Print settings, hardware and assembly →](case/README.md)
+`case/` has a parametric enclosure you print in one colour (build123d): a slim bezel with a 45° mat bevel, weighted at the bottom like a gallery mat, and a back cover with keyholes for wall hanging. For the desk there's an easel in homage to portrayt's: two splayed legs, a shelf, and a back leg that rises between the leg tops and folds flat. Every part prints without supports. There is also a quick fit-test ring to print before the long job. [Print settings, hardware and assembly →](case/README.md)
 
 ![Case parts](media/case.png)
+![On the easel](media/case-easel.png)
 ![Section and assembly](media/case-assembly.png)
 
 ---

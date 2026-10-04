@@ -9,13 +9,13 @@ from mezzotint_case import P, Geo
 def box(x0, x1, y0, y1, z0, z1):
     """Front-view x/y (y down) + depth z -> mesh in model coords (y up)."""
     m = trimesh.creation.box(extents=(x1 - x0, y1 - y0, z1 - z0))
-    m.apply_translation(((x0 + x1) / 2, -(y0 + y1) / 2, (z0 + z1) / 2))
+    m.apply_translation((-(x0 + x1) / 2, -(y0 + y1) / 2, (z0 + z1) / 2))   # see B()
     return m
 
 
 def cyl(x, y, r, z0, z1):
     m = trimesh.creation.cylinder(radius=r, height=z1 - z0, sections=32)
-    m.apply_translation((x, -y, (z0 + z1) / 2))
+    m.apply_translation((-x, -y, (z0 + z1) / 2))
     return m
 
 
@@ -35,7 +35,7 @@ def hardware(p: P):
         "USB-A port": box(X + p.pi_w - 14, X + p.pi_w + p.jack_overhang, Y + 16, Y + 31, pz - 7, pz),
         "HDMI port": box(X + 24.5, X + 39.5, Y + p.pi_h - 11, Y + p.pi_h + 1, pz - 6.5, pz),
         "audio jack": box(X + 50, X + 57, Y + p.pi_h - 12, Y + p.pi_h + 1, pz - 6, pz),
-        "micro-USB + 90deg plug": box(ux - 5, ux + 16, Y + p.pi_h, Y + p.pi_h + 11, pz - 5.5, pz + 2.5),
+        "micro-USB plug": box(ux - 4, ux + 4, Y + p.pi_h - 1, p.board_h + p.fit + p.fpc_extra + p.wall + p.plug_drop, pz - 5.5, pz + 2.5),
         "solder tails": box(X + 7, X + 58, Y + 1, Y + 6, pb, pb + 2.0),
         "microSD + card": box(X - p.sd_overhang, X + 12, Y + 21, Y + 33, pb, pb + 2.0),
         "wHAT breakout header": box(62, 88.5, 66, 76.5, wb, wb + 8.5),
@@ -79,7 +79,7 @@ def main():
     # the tightest gaps that matter
     import trimesh.proximity as tp
     for pn, hn in (("cover", "screw head 1"), ("cover", "solder tails"), ("cover", "microSD + card"),
-                   ("body", "wHAT breakout header"), ("body", "micro-USB + 90deg plug"), ("body", "microSD + card")):
+                   ("body", "wHAT breakout header"), ("body", "micro-USB plug"), ("body", "microSD + card")):
         d = -tp.signed_distance(parts[pn], hw[hn].sample(4000)).max()
         print(f"  min gap {pn} -> {hn:22s} {d:5.2f} mm")
     print(f"cavity {g.cw:.1f} x {g.ch:.1f} x {p.depth():.1f} mm; wHAT side margin {min(g.cw - p.board_w, g.ch - p.board_h) / 2:.2f} mm")
